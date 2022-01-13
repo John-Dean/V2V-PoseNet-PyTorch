@@ -2,7 +2,6 @@ __pycache__/
 .vscode
 /checkpoint/
 /datasets/ITOP/
-/datasets/ITOP_side_processed/
 /datasets/ITOP_side_processed/train/
 accuracy-plot.png
 mean-error-plot.png
