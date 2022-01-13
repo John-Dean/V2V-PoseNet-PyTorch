@@ -1,92 +1,123 @@
-# V2V-PoseNet-pytorch
-This is a pytorch implementation of V2V-PoseNet([V2V-PoseNet: Voxel-to-Voxel Prediction Network for Accurate 3D Hand and Human Pose Estimation from a Single Depth Map](https://arxiv.org/abs/1711.07399)), which is largely based on the author's [torch7 implementation](https://github.com/mks0601/V2V-PoseNet_RELEASE).
+# V2V-PoseNet-PyTorch
+This is a reimplementation of the PyTorch implementation of [V2V-PoseNet: Voxel-to-Voxel Prediction Network for Accurate 3D Hand and Human Pose Estimation from a Single Depth Map](https://arxiv.org/abs/1711.07399), created by [@dragonbook](https://github.com/dragonbook), which is largely based on the author's [torch7 implementation](https://github.com/mks0601/V2V-PoseNet_RELEASE).
 
-This repository provides
-* V2V-PoseNet core modules(model, voxelization, ..)
-* An experiment demo on MSRA hand pose dataset, result in ~11mm mean error.
-* *Additional [Integral Pose Loss](https://arxiv.org/abs/1711.08229) (or [PoseFix Loss](https://arxiv.org/abs/1812.03595)) implementation*, result in ~10mm mean error on the same demo.
+This repository provides:
+* V2V-PoseNet core modules (model, voxelization, ..)
+* An trained model on MSRA hand pose dataset, with about a ~11mm mean error.
 
 ## Requirements
-* pytorch 0.4.1 or pytorch 1.0
-* python 3.6
-* numpy
+Tested on a Windows 11 AMD 5950x Nvidia 3090 machine running:
+* Python 3.9.9
+* numpy 1.22.0
+* open3d 0.14.1.0
+* torch 1.10+cu113 (pytorch)
 
-### **Warning on pytorch0.4.1 cudnn**:
-May need to **disable cudnn for batchnorm**, or just only use cuda instead. With cudnn for batchnorm and in float precision, the model cannot train well. My simple experiments show that:
+## Optional Requirements
+If you wish to convert the ITOP dataset for use in the model you will need the following:
+* h5py 3.6.0
 
+## How to install
+1. Clone the repo
+2. Open a Python terminal in the root directory of the repo
+3. Run the following to install the dependencies  
+   ```python3 install_requirements.py```
+4. Install PyTorch (with CUDA) the install link for this on Windows 10/11 with a modern Nvidia GPU is as follows:  
+   ```pip3 install torch==1.10.1+cu113 torchvision==0.11.2+cu113 torchaudio===0.10.1+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html```  
+   For other installs use the config tool at [pytorch.org](https://pytorch.org/) to download it
+
+## MSRA Hand Gesture dataset
+### Downloading the dataset
+The dataset and the centers can be found at:
+* [MSRA hand dataset](https://jimmysuen.github.io/) - and extract to `/datasets/cvpr15_MSRAHandGestureDB`
+* [Estimated centers](https://cv.snu.ac.kr/research/V2V-PoseNet/MSRA/center/center.tar.gz)  - and extract to `/datasets/msra_center`
+
+The dataset is described in the paper [Cascaded Hand Pose Regression, Xiao Sun, Yichen Wei, Shuang Liang, Xiaoou Tang and Jian Sun, CVPR 2015](https://www.cv-foundation.org/openaccess/content_cvpr_2015/papers/Sun_Cascaded_Hand_Pose_2015_CVPR_paper.pdf).  
+The estimated centers are provided by the [original author's implementation](https://github.com/mks0601/V2V-PoseNet_RELEASE).  
+
+For simplicity the centers are currently included in the repo.  
+
+### Training a model on the dataset
+1. Open a python terminal in the root directory of the repo
+2. Run the following `python3 experiments/msra-subject3/main.py`
+3. Let it run, after 15 epochs it will output to `/output/TIMESTAMP/`  
+   The output contains
+     - `/checkpoint/`  
+       Contains the checkpoint files from each epoch
+     - `model.pt`  
+       The exported model
+     - `fit_res.txt` & `test_res.txt`  
+       Used by the visualizer (see below)
+
+### Pre-trained model
+A pre-trained model is included in `/output/cvpr15_MSRAHandGestureDB/model.pt`
+
+
+## ITOP Dataset
+### Downloading the dataset
+The dataset and the centers can be found at:
+* [ITOP dataset](https://zenodo.org/record/3932973) - and extract to `/datasets/ITOP`
+* [Estimated centers](https://drive.google.com/drive/folders/1-v-VN-eztzoztfHcLt_Y8o5zfRosJ6jt)  - and extract to `/datasets/ITOP_side_center`
+
+The dataset is described in the paper [Towards Viewpoint Invariant 3D Human Pose Estimation, Albert Haque, Boya Peng, Zelun Luo, Alexandre Alahi, Serena Yeung, Li Fei-Fei, CVPR 2016](https://arxiv.org/abs/1603.07076).  
+The estimated centers are provided by the [original author's implementation](https://github.com/mks0601/V2V-PoseNet_RELEASE).
+
+For simplicity the centers are currently included in the repo.  
+
+Your final `/dataset/` folder should look like:   
 ```
-cudnn+float: NOT work(e.g. the loss decreases much slower, and result in a higher loss) 
-cudnn+float+(disable batchnorm's cudnn): work(e.g. the loss decreases faster, and result in a lower loss)
-cudnn+double: work, but the speed is slow
-cuda+(float/double): work, but uses much more memroy
+/datasets/ITOP 
+/datasets/ITOP/ITOP_side_test_labels.h5
+/datasets/ITOP/ITOP_side_test_point_cloud.h5
+/datasets/ITOP/ITOP_side_train_labels.h5
+/datasets/ITOP/ITOP_side_train_point_cloud.h5
+
+/datasets/ITOP_side_center
+/datasets/ITOP_side_center/center_test.txt
+/datasets/ITOP_side_center/center_train.txt
 ```
 
-There is a similar issue pointed out by https://github.com/Microsoft/human-pose-estimation.pytorch. As suggested, disable cudnn for batchnorm:
+### Pre-preparing the dataset
+As the dataset is very large we preprocess it all into smaller files for each frame.  
+A helper file is provided, which is run using the following:  
+`python3 datasets/itop_side_preprocess.py`  
+This will generate a ~10GB directory at `/datasets/ITOP_side_processed`
 
-```
-PYTORCH=/path/to/pytorch
-for pytorch v0.4.0
-sed -i "1194s/torch\.backends\.cudnn\.enabled/False/g" ${PYTORCH}/torch/nn/functional.py
-for pytorch v0.4.1
-sed -i "1254s/torch\.backends\.cudnn\.enabled/False/g" ${PYTORCH}/torch/nn/functional.py
-```
-
-## MSRA hand dataset demo
-### Usage
-- Clone this repo:
-```
-git clone https://github.com/dragonbook/V2V-PoseNet-pytorch.git
-cd V2V-PoseNet-pytorch
-```
-
-- Download [MSRA hand dataset](https://jimmysuen.github.io/) and extract to directory path/to/msra-hand.
-
-- Download [estimated centers](https://cv.snu.ac.kr/research/V2V-PoseNet/MSRA/center/center.tar.gz) of MSRA hand dataset which required by V2V-PoseNet and provided by the [author's implementation](https://github.com/mks0601/V2V-PoseNet_RELEASE). Extract them to the directory path/to/msra-hand-center. 
-```
-Note, this repository contains a copy of the msra hand centers under ./datasets/msra_center.
-```
-
-- Configure data_dir=path/to/msra-hand and center_dir=path/to/msra-hand-center in ./experiments/msra-subject3/main.py. And Run following command to perform training and testing. It will train the dataset for few epochs and evaluate on the test dataset. The test result will be saved as test_res.txt and the fit result on training data will be saved as fit_res.txt
-```
-PYTHONPATH=./ python ./experiments/msra-subject3/main.py
-```
-
-- Configure data_dir=path/to/msra-hand and center_dir=path/to/msra-hand-center in ./experiments/msra-subject3/gen_gt.py. Run it to generate ground truth labels as train_s3_gt.txt and test_s3_gt.txt
-
-- Configure pred_file=path/to/test_s3_gt.txt and gt_file=path/to/test_res.txt in ./experiments/msra-subject3/show_acc.py. Run it to plot accuracy and error.
-
-- The following figures show that the simple experiment can result in about 11mm mean error.
-
-![msra_s3_acc](/figs/msra_s3_joint_acc.png)
-
-![msra_s3_mean_error](/figs/msra_s3_joint_mean_error.png)
+### Training a model on the dataset
+1. Open a python terminal in the root directory of the repo
+2. Run the following `python3 experiments/itop_side/main.py`
+3. Let it run, after 15 epochs it will output to `/output/TIMESTAMP/`  
+   The output contains
+     - `/checkpoint/`  
+       Contains the checkpoint files from each epoch
+     - `model.pt`  
+       The exported model
+     - `fit_res.txt` & `test_res.txt`  
+       Used by the visualizer
 
 
-## Additional [IntegralPose](https://arxiv.org/abs/1711.08229)/[PoseFix](https://arxiv.org/abs/1812.03595) style loss implementation
-Replaced V2V-PoseNet's loss with PoseFix's loss(one-hot heatmap loss + L1 coord loss), and it's independently implemented under ./integral-pose directory. Also, configure data_dir and center_dir in ./integral-pose/main.py, and start training. The result shows about 10mm mean error.
-
-![integral_loss_s3_acc](/figs/integral_pose_msra_s3_joint_acc.png)
-
-![integral_loss_mean_error](/figs/integral_pose_msra_s3_joint_mean_error.png)
-
-![compare_mean_error](/figs/mean_error_compare.png)
-
-# Below is from author's README for reference
-# V2V-PoseNet: Voxel-to-Voxel Prediction Network for Accurate 3D Hand and Human Pose Estimation from a Single Depth Map
-
-# Introduction
-
-This is our project repository for the paper, **V2V-PoseNet: Voxel-to-Voxel Prediction Network for Accurate 3D Hand and Human Pose Estimation from a Single Depth Map ([CVPR 2018](http://cvpr2018.thecvf.com))**.
-
-We, **Team SNU CVLAB**, (<i>Gyeongsik Moon, Juyong Chang</i>, and <i>Kyoung Mu Lee</i> of [**Computer Vision Lab, Seoul National University**](https://cv.snu.ac.kr/)) are **winners** of [**HANDS2017 Challenge**](http://icvl.ee.ic.ac.uk/hands17/challenge/) on frame-based 3D hand pose estimation.
+### Pre-trained model
+A pre-trained model is included in `/output/ITOP_side/model.pt`
 
 
+## Model accuracy
+To see how well a model is trained, run the following:  
+`python3 output/OUTPUT_FOLDER/accuracy_graph.py`  
+for the 2 pre-trained models the command is as follows:
+- MSRA  
+  `python3 output/cvpr15_MSRAHandGestureDB/accuracy_graph.py`  
+- ITOP side  
+  `python3 output/ITOP_side/accuracy_graph.py`  
 
-Please refer to our paper for details.
+This will display 2 graphs which can be used to assess the accuracy of the model.  
 
-If you find our work useful in your research or publication, please cite our work:
 
-[1] Moon, Gyeongsik, Ju Yong Chang, and Kyoung Mu Lee. **"V2V-PoseNet: Voxel-to-Voxel Prediction Network for Accurate 3D Hand and Human Pose Estimation from a Single Depth Map."** <i>CVPR 2018. </i> [[arXiv](https://arxiv.org/abs/1711.07399)]
+## Example of a model in use
+Some demonstration code of the ITOP side model is provided, and can be run using the following from the root directory of the repo:  
+`python3 example/itop.py`  
+This code pulls the test data from the ITOP side dataset and runs the model on them.
+
+## Original authors
+Moon, Gyeongsik, Ju Yong Chang, and Kyoung Mu Lee. **"V2V-PoseNet: Voxel-to-Voxel Prediction Network for Accurate 3D Hand and Human Pose Estimation from a Single Depth Map."** <i>CVPR 2018. </i> [[arXiv](https://arxiv.org/abs/1711.07399)]
   
   ```
 @InProceedings{Moon_2018_CVPR_V2V-PoseNet,
@@ -96,95 +127,3 @@ If you find our work useful in your research or publication, please cite our wor
   year = {2018}
 }
 ```
-
-In this repository, we provide
-* Our model architecture description (V2V-PoseNet)
-* HANDS2017 frame-based 3D hand pose estimation Challenge Results
-* Comparison with the previous state-of-the-art methods
-* Training code
-* Datasets we used (ICVL, NYU, MSRA, ITOP)
-* Trained models and estimated results
-* 3D hand and human pose estimation examples
-
-
-## Model Architecture
-
-![V2V-PoseNet](/figs/V2V-PoseNet.png)
-
-## HANDS2017 frame-based 3D hand pose estimation Challenge Results
-
-![Challenge_result](/figs/Challenge_result.png)
-
-
-## Comparison with the previous state-of-the-art methods
-
-![Paper_result_hand_graph](/figs/Paper_result_hand_graph.png)
-
-![Paper_result_hand_table](/figs/Paper_result_hand_table.png)
-
-![Paper_result_human_table](/figs/Paper_result_human_table.png)
-
-# About our code
-## Dependencies
-* [Torch7](http://torch.ch)
-* [CUDA](https://developer.nvidia.com/cuda-downloads)
-* [cuDNN](https://developer.nvidia.com/cudnn)
-
-Our code is tested under Ubuntu 14.04 and 16.04 environment with Titan X GPUs (12GB VRAM).
-
-## Code
-Clone this repository into any place you want. You may follow the example below.
-```bash
-makeReposit = [/the/directory/as/you/wish]
-mkdir -p $makeReposit/; cd $makeReposit/
-git clone https://github.com/mks0601/V2V-PoseNet_RELEASE.git
-```
-* `src` folder contains lua script files for data loader, trainer, tester and other utilities.
-* `data` folder contains data converter which converts image files to the binary files.
-
-To train our model, please run the following command in the `src` directory:
-
-```bash
-th rum_me.lua
-```
-
-* There are some optional configurations you can adjust in the config.lua. 
-* You have to convert the `.png` images of the ICVL and NYU dataset to the `.bin` files by running the code from `data` folder.
-* The directory where you have to put the dataset files and computed centers of each frame is defined in `src/data/dataset_name/data.lua`
-* Visualization code is finally uploaded! You have to prepare 'result_pixel.txt' for each dataset. Each row of the result file has to contain the pixel coordinates of x, y and depth of all joints (i.e, x1 y1 z1 x2 y2 z2 ...). Then run pixel2world script and run draw_DB.m
-
-# Dataset
-We trained and tested our model on the four 3D hand pose estimation and one 3D human pose estimation datasets.
-
-* ICVL Hand Poseture Dataset [[link](https://labicvl.github.io/hand.html)] [[paper](http://www.iis.ee.ic.ac.uk/dtang/cvpr_14.pdf)]
-* NYU Hand Pose Dataset [[link](https://cims.nyu.edu/~tompson/NYU_Hand_Pose_Dataset.htm)] [[paper](https://cims.nyu.edu/~tompson/others/TOG_2014_paper_PREPRINT.pdf)]
-* MSRA Hand Pose Dataset [[link](https://jimmysuen.github.io/)] [[paper](https://www.cv-foundation.org/openaccess/content_cvpr_2015/papers/Sun_Cascaded_Hand_Pose_2015_CVPR_paper.pdf)]
-* HANDS2017 Challenge Dataset [[link](http://icvl.ee.ic.ac.uk/hands17/challenge/)] [[paper](https://arxiv.org/abs/1712.03917)] [[challenge benchmark paper](http://openaccess.thecvf.com/content_cvpr_2018/papers/Yuan_Depth-Based_3D_Hand_CVPR_2018_paper.pdf)]
-* ITOP Human Pose Dataset [[link](https://www.albert.cm/projects/viewpoint_3d_pose/)] [[paper](https://arxiv.org/abs/1603.07076)]
-
-
-# Results
-Here we provide the precomputed centers, estimated 3D coordinates and pre-trained models.
-
-The precomputed centers are obtained by training the hand center estimation network from [DeepPrior++ ](https://arxiv.org/pdf/1708.08325.pdf). Each line represents 3D world coordinate of each frame.
-In case of ICVL, NYU, MSRA dataset, if depth map is not exist or not contain hand, that frame is considered as invalid.
-In case of ITOP dataset, if 'valid' variable of a certain frame is false, that frame is considered as invalid.
-All test images are considered as valid.
-
-The 3D coordinates estimated on the ICVL, NYU and MSRA datasets are pixel coordinates and the 3D coordinates estimated on the ITOP datasets are world coordinates. The estimated results are from ensembled model. You can make the results from a single model by downloading the pre-trained model and testing it.
-
-* ICVL Hand Poseture Dataset [[center_trainset](https://cv.snu.ac.kr/research/V2V-PoseNet/ICVL/center/center_train_refined.txt)] [[center_testset](https://cv.snu.ac.kr/research/V2V-PoseNet/ICVL/center/center_test_refined.txt)] [[estimation](https://cv.snu.ac.kr/research/V2V-PoseNet/ICVL/coordinate/result.txt)] [[models](https://cv.snu.ac.kr/research/V2V-PoseNet/ICVL/model/model.tar.gz)]
-* NYU Hand Pose Dataset [[center_trainset](https://cv.snu.ac.kr/research/V2V-PoseNet/NYU/center/center_train_refined.txt)] [[center_testset](https://cv.snu.ac.kr/research/V2V-PoseNet/NYU/center/center_test_refined.txt)] [[estimation](https://cv.snu.ac.kr/research/V2V-PoseNet/NYU/coordinate/result.txt)] [[models](https://cv.snu.ac.kr/research/V2V-PoseNet/NYU/model/model.tar.gz)]
-* MSRA Hand Pose Dataset [[center](https://cv.snu.ac.kr/research/V2V-PoseNet/MSRA/center/center.tar.gz)] [[estimation](https://cv.snu.ac.kr/research/V2V-PoseNet/MSRA/coordinate/result.txt)] [[models](https://cv.snu.ac.kr/research/V2V-PoseNet/MSRA/model/model.tar.gz)]
-* ITOP Human Pose Dataset (front-view) [[center_trainset](https://cv.snu.ac.kr/research/V2V-PoseNet/ITOP_front/center/center_train.txt)] [[center_testset](https://cv.snu.ac.kr/research/V2V-PoseNet/ITOP_front/center/center_test.txt)] [[estimation](https://cv.snu.ac.kr/research/V2V-PoseNet/ITOP_front/coordinate/result.txt)] [[models](https://cv.snu.ac.kr/research/V2V-PoseNet/ITOP_front/model/model.tar.gz)]
-* ITOP Human Pose Dataset (top-view) [[center_trainset](https://cv.snu.ac.kr/research/V2V-PoseNet/ITOP_top/center/center_train.txt)] [[center_testset](https://cv.snu.ac.kr/research/V2V-PoseNet/ITOP_top/center/center_test.txt)] [[estimation](https://cv.snu.ac.kr/research/V2V-PoseNet/ITOP_top/coordinate/result.txt)] [[models](https://cv.snu.ac.kr/research/V2V-PoseNet/ITOP_top/model/model.tar.gz)]
-
-We used [awesome-hand-pose-estimation ](https://github.com/xinghaochen/awesome-hand-pose-estimation) to evaluate the accuracy of the V2V-PoseNet on the ICVL, NYU and MSRA dataset.
-
-Belows are qualitative results.
-![result_1](/figs/result/Paper_result_ICVL.png)
-![result_2](/figs/result/Paper_result_NYU.png)
-![result_3](/figs/result/Paper_result_MSRA.png)
-![result_4](/figs/result/Paper_result_HANDS2017.png)
-![result_5](/figs/result/Paper_result_ITOP_front.png)
-![result_6](/figs/result/Paper_result_ITOP_top.png)

@@ -48,7 +48,7 @@ def load_depthmap(filename, img_width, img_height, max_depth):
         return depth_image
 
 
-class MARAHandDataset(Dataset):
+class MSRAHandDataset(Dataset):
     def __init__(self, root, center_dir, mode, test_subject_id, transform=None):
         self.img_width = 320
         self.img_height = 240

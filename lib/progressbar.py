@@ -2,10 +2,9 @@ import os
 import sys
 import time
 
-
-_, term_width = os.popen('stty size', 'r').read().split()
-term_width = int(term_width)
-TOTAL_BAR_LENGTH = 65.
+# _, term_width = os.popen('stty size', 'r').read().split()
+term_width = 80 #int(term_width)
+TOTAL_BAR_LENGTH = 25.
 last_time = time.time()
 begin_time = last_time
 
@@ -83,4 +82,9 @@ def format_time(seconds):
         i += 1
     if f == '':
         f = '0ms'
+        
+    length = len(f)
+    while (length - 9) < 0:
+        f = " " + f
+        length = len(f)
     return f
