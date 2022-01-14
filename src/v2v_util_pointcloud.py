@@ -52,6 +52,9 @@ def scattering_pointcloud(pointcloud, cropped_size):
     )
     pointcloud  =   pointcloud.crop(bounding_box) 
     
+    ## Used to visualize it
+    # o3d.visualization.draw_geometries([pointcloud])
+    
     points = np.trunc(np.asarray(pointcloud.points)).astype(int)
     
     #Convert to a output 3d array
@@ -170,7 +173,6 @@ def generate_cubic_input(pointcloud, refpoint, new_size, angle, trans, sizes):
     # print("are equal?")
     # print(np.array_equal(cubic, cubic_old))
     # input("Pause to confirm")
-
 
     return cubic
 
